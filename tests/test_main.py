@@ -95,6 +95,26 @@ async def test_week_with_no_activities_says_so(interface, context):
     update.message.reply_text.assert_awaited_once_with("No activities recorded this week.")
 
 
+async def test_month_with_no_activities_says_so(interface, context):
+    update = make_update(text="/month")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("No activities recorded this month.")
+
+
+async def test_month_lists_a_completed_activity(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    await interface._handle_text(make_update(text="/stop"), context)
+    update = make_update(text="/month")
+
+    await interface._handle_text(update, context)
+
+    reply = update.message.reply_text.await_args.args[0]
+    assert "Coding" in reply
+    assert "Total tracked" in reply
+
+
 async def test_today_lists_a_completed_activity_started_today(interface, context):
     await interface._handle_text(make_update(text="/start Coding"), context)
     await interface._handle_text(make_update(text="/stop"), context)

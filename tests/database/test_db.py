@@ -134,6 +134,34 @@ def test_this_week_activities_starts_on_monday(db):
     assert [a.name for a in this_week] == ["ThisWeek"]
 
 
+def test_this_month_activities_excludes_previous_and_next_month(db):
+    mid_august = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+    end_of_july = datetime(2026, 7, 31, 23, 0, tzinfo=UTC)
+    start_of_september = datetime(2026, 9, 1, 0, 30, tzinfo=UTC)
+
+    db.insert_activity(name="July", started_at=end_of_july, ended_at=end_of_july + timedelta(minutes=5))
+    db.insert_activity(name="August", started_at=mid_august, ended_at=mid_august + timedelta(minutes=5))
+    db.insert_activity(
+        name="September", started_at=start_of_september, ended_at=start_of_september + timedelta(minutes=5)
+    )
+
+    this_month = db.get_this_month_activities(now=mid_august)
+    assert [a.name for a in this_month] == ["August"]
+
+
+def test_this_month_handles_december_year_rollover(db):
+    mid_december = datetime(2026, 12, 15, 12, 0, tzinfo=UTC)
+    start_of_january = datetime(2027, 1, 1, 0, 30, tzinfo=UTC)
+
+    db.insert_activity(name="December", started_at=mid_december, ended_at=mid_december + timedelta(minutes=5))
+    db.insert_activity(
+        name="January", started_at=start_of_january, ended_at=start_of_january + timedelta(minutes=5)
+    )
+
+    this_month = db.get_this_month_activities(now=mid_december)
+    assert [a.name for a in this_month] == ["December"]
+
+
 def test_activity_record_is_immutable():
     record = ActivityRecord(id=1, name="Coding", started_at=datetime.now(UTC))
     with pytest.raises(Exception):

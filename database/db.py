@@ -128,6 +128,12 @@ class Database:
         end = start + timedelta(days=7)
         return self.get_activities_between(start, end)
 
+    def get_this_month_activities(self, now: Optional[datetime] = None) -> List[ActivityRecord]:
+        now = now or datetime.now(timezone.utc)
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = (start + timedelta(days=32)).replace(day=1)
+        return self.get_activities_between(start, end)
+
     def close(self) -> None:
         self._connection.close()
 

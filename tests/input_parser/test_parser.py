@@ -49,6 +49,10 @@ def test_week():
     assert parse_command(make_message("/week")).type == CommandType.SHOW_WEEK
 
 
+def test_month():
+    assert parse_command(make_message("/month")).type == CommandType.SHOW_MONTH
+
+
 def test_help():
     assert parse_command(make_message("/help")).type == CommandType.HELP
 

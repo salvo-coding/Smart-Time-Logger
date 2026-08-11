@@ -3,7 +3,7 @@ Input Parser Module (Module 2)
 
 Responsibility: convert a telegram_interface.messages.IncomingMessage into a
 standardized Command (START_ACTIVITY, STOP_ACTIVITY, SHOW_CURRENT,
-SHOW_TODAY, SHOW_WEEK, HELP).
+SHOW_TODAY, SHOW_WEEK, SHOW_MONTH, HELP).
 
 Must NOT touch the database, close activities, calculate durations,
 generate reports, or talk to Telegram directly.
@@ -16,6 +16,7 @@ Recognized syntax (case-insensitive, leading/trailing whitespace ignored):
     /current                 -> SHOW_CURRENT
     /today                   -> SHOW_TODAY
     /week                    -> SHOW_WEEK
+    /month                   -> SHOW_MONTH
     /help                    -> HELP
     anything else            -> UNKNOWN
 
@@ -37,6 +38,7 @@ class CommandType(Enum):
     SHOW_CURRENT = auto()
     SHOW_TODAY = auto()
     SHOW_WEEK = auto()
+    SHOW_MONTH = auto()
     HELP = auto()
     UNKNOWN = auto()
 
@@ -53,6 +55,7 @@ _NO_ARG_COMMANDS = {
     "/current": CommandType.SHOW_CURRENT,
     "/today": CommandType.SHOW_TODAY,
     "/week": CommandType.SHOW_WEEK,
+    "/month": CommandType.SHOW_MONTH,
     "/help": CommandType.HELP,
 }
 

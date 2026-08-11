@@ -65,3 +65,6 @@ class ActivityManager:
 
     def get_this_week(self) -> List[ActivityRecord]:
         return self._database.get_this_week_activities(now=self._clock())
+
+    def get_this_month(self) -> List[ActivityRecord]:
+        return self._database.get_this_month_activities(now=self._clock())
