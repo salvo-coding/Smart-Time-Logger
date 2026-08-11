@@ -9,18 +9,24 @@ See `CLAUDE.md` for development principles and workflow.
 ## Status
 
 Modules 1 (Telegram interface), 2 (input parser), 3 (activity manager), 4
-(validation), and 5 (database) are implemented and tested. Modules 6-7 are
-placeholder stubs, to be built one at a time. Module 8 (logging) has a
+(validation), 5 (database), and 6 (analytics) are implemented and tested.
+Module 7 (reports/charts) is a placeholder stub. Module 8 (logging) has a
 minimal cross-cutting implementation that Module 1 depends on.
 
 Activity state now persists to a local SQLite database (`data/time_logger.db`,
 gitignored) and survives a bot restart. `ActivityManager` no longer holds
 state in memory itself - it delegates all reads/writes to `Database`, which
-validates every record through Module 4 before it's written. `/today` and
-`/week` now return real data.
+validates every record through Module 4 before it's written.
 
-Modules 6 (analytics) and 7 (reports/charts) are not built yet, so `/today`
-and `/week` show a simple list-and-total, not calculated metrics or charts.
+`/today` and `/week` now list each activity plus total tracked time, and
+(once there's more than one closed activity) longest session and average
+duration, computed by the analytics engine. Category-based metrics ("time
+by category", "most common category", "productive/wasted time") aren't
+implemented - no part of the system has a category field, since that was
+explicitly deferred back in Module 2.
+
+Module 7 (reports/charts) is the last piece - daily/weekly/monthly charts
+on top of what analytics already computes.
 
 ## Setup
 
@@ -72,7 +78,7 @@ On startup the bot verifies its connection to the Telegram API before
 polling. If the token is wrong, it fails fast with a clear error instead
 of hanging.
 
-## Verifying Modules 1, 2, 3, 4 & 5 work
+## Verifying Modules 1-6 work
 
 1. Run the automated test suite:
 
@@ -95,8 +101,9 @@ of hanging.
 7. Send `/stop` — the bot should reply `Stopped 'Reading' (tracked ...).`
 8. Send `/stop` again — the bot should reply
    `No activity is currently running.`
-9. Send `/today` — the bot should list both activities with durations and
-   a total.
+9. Send `/today` — the bot should list both activities with durations, a
+   total, plus a "Longest session" and "Average duration" line since
+   there's more than one closed activity.
 10. Stop the bot (Ctrl+C) and start it again with `python main.py`, then
     send `/today` again — the same activities should still be there,
     confirming persistence across a restart.

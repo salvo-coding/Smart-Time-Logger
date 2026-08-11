@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 
 from activity_manager.manager import ActivityManager
+from analytics.engine import summarize
 from database.db import ActivityRecord, Database
 from input_parser.parser import Command, CommandType, parse_command
 from logging_utils.logger import get_logger
@@ -37,15 +38,20 @@ def _format_activity_list(activities: List[ActivityRecord], label: str) -> str:
         return f"No activities recorded {label}."
 
     lines = [f"Activities {label}:"]
-    total = timedelta()
     for activity in activities:
         if activity.ended_at is not None:
             duration = activity.ended_at - activity.started_at
-            total += duration
             lines.append(f"- {activity.name}: {_format_duration(duration)}")
         else:
             lines.append(f"- {activity.name}: still running")
-    lines.append(f"Total tracked: {_format_duration(total)}")
+
+    summary = summarize(activities)
+    lines.append(f"Total tracked: {_format_duration(summary.total_tracked_time)}")
+    if summary.closed_count > 1:
+        longest = summary.longest_session
+        longest_duration = longest.ended_at - longest.started_at
+        lines.append(f"Longest session: {longest.name} ({_format_duration(longest_duration)})")
+        lines.append(f"Average duration: {_format_duration(summary.average_duration)}")
     return "\n".join(lines)
 
 

@@ -105,6 +105,21 @@ async def test_today_lists_a_completed_activity_started_today(interface, context
     reply = update.message.reply_text.await_args.args[0]
     assert "Coding" in reply
     assert "Total tracked" in reply
+    # Only one closed activity - longest/average would be redundant noise.
+    assert "Longest session" not in reply
+
+
+async def test_today_with_multiple_activities_includes_analytics(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    await interface._handle_text(make_update(text="/start Reading"), context)
+    await interface._handle_text(make_update(text="/stop"), context)
+    update = make_update(text="/today")
+
+    await interface._handle_text(update, context)
+
+    reply = update.message.reply_text.await_args.args[0]
+    assert "Longest session" in reply
+    assert "Average duration" in reply
 
 
 # --- activity_manager-backed commands ---
