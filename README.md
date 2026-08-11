@@ -8,10 +8,15 @@ See `CLAUDE.md` for development principles and workflow.
 
 ## Status
 
-Modules 1 (Telegram interface), 2 (input parser), and 3 (activity manager)
-are implemented and tested. Modules 4-7 are placeholder stubs, to be built
-one at a time. Module 8 (logging) has a minimal cross-cutting
-implementation that Module 1 depends on.
+Modules 1 (Telegram interface), 2 (input parser), 3 (activity manager), and
+4 (validation) are implemented and tested. Modules 5-7 are placeholder
+stubs, to be built one at a time. Module 8 (logging) has a minimal
+cross-cutting implementation that Module 1 depends on.
+
+Validation is not yet wired into the live bot - there's no database insert
+path to protect yet. It's ready for Module 5 to call before persisting a
+record; in the meantime, `tests/test_activity_validation_integration.py`
+confirms real ActivityManager output passes it.
 
 Activity state is currently in-memory only and is lost on restart - Module
 5 (database) will add persistence. `/today` and `/week` reply that they
