@@ -8,9 +8,10 @@ See `CLAUDE.md` for development principles and workflow.
 
 ## Status
 
-Module 1 (Telegram interface) is implemented and tested. Modules 2-7 are
-placeholder stubs, to be built one at a time. Module 8 (logging) has a
-minimal cross-cutting implementation that Module 1 depends on.
+Modules 1 (Telegram interface) and 2 (input parser) are implemented and
+tested. Modules 3-7 are placeholder stubs, to be built one at a time.
+Module 8 (logging) has a minimal cross-cutting implementation that Module 1
+depends on.
 
 ## Setup
 
@@ -62,7 +63,7 @@ On startup the bot verifies its connection to the Telegram API before
 polling. If the token is wrong, it fails fast with a clear error instead
 of hanging.
 
-## Verifying Module 1 works
+## Verifying Modules 1 & 2 work
 
 1. Run the automated test suite:
 
@@ -74,14 +75,21 @@ of hanging.
 
 2. Start the bot (`python main.py`) and open it in Telegram by its
    `@username`.
-3. Send `/start` — the bot should reply beginning with `Received: '/start'`
-   (command processing is not implemented yet; that's Module 2's job).
-4. Send a photo or sticker — the bot should reply
+3. Send `/start` (no activity name) — the bot should reply with the help
+   text listing all commands.
+4. Send `/start Coding` — the bot should reply
+   `Understood: START_ACTIVITY (Coding)` followed by a note that execution
+   isn't implemented yet (that's Module 3's job).
+5. Send `/stop`, `/current`, `/today`, `/week`, `/help` — each should
+   reply with its recognized command name (or the help text for `/help`).
+6. Send something unrecognized, e.g. `banana` — the bot should reply
+   `Unrecognized command: 'banana'` and point to `/help`.
+7. Send a photo or sticker — the bot should reply
    "I can only handle text messages right now." and log a WARNING in
    `logs/app.log`.
-5. If a second Telegram account is available, message the bot from it —
+8. If a second Telegram account is available, message the bot from it —
    the bot should reply "You are not authorized to use this bot." and log
    a WARNING.
-6. Inspect `logs/app.log` and confirm the expected INFO/WARNING/ERROR
+9. Inspect `logs/app.log` and confirm the expected INFO/WARNING/ERROR
    events appear, and that your bot token never appears anywhere in the
    file (`grep -i <token> logs/app.log` should return nothing).
