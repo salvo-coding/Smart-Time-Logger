@@ -8,19 +8,19 @@ See `CLAUDE.md` for development principles and workflow.
 
 ## Status
 
-Modules 1 (Telegram interface), 2 (input parser), 3 (activity manager), and
-4 (validation) are implemented and tested. Modules 5-7 are placeholder
-stubs, to be built one at a time. Module 8 (logging) has a minimal
-cross-cutting implementation that Module 1 depends on.
+Modules 1 (Telegram interface), 2 (input parser), 3 (activity manager), 4
+(validation), and 5 (database) are implemented and tested. Modules 6-7 are
+placeholder stubs, to be built one at a time. Module 8 (logging) has a
+minimal cross-cutting implementation that Module 1 depends on.
 
-Validation is not yet wired into the live bot - there's no database insert
-path to protect yet. It's ready for Module 5 to call before persisting a
-record; in the meantime, `tests/test_activity_validation_integration.py`
-confirms real ActivityManager output passes it.
+Activity state now persists to a local SQLite database (`data/time_logger.db`,
+gitignored) and survives a bot restart. `ActivityManager` no longer holds
+state in memory itself - it delegates all reads/writes to `Database`, which
+validates every record through Module 4 before it's written. `/today` and
+`/week` now return real data.
 
-Activity state is currently in-memory only and is lost on restart - Module
-5 (database) will add persistence. `/today` and `/week` reply that they
-aren't available yet until that module exists.
+Modules 6 (analytics) and 7 (reports/charts) are not built yet, so `/today`
+and `/week` show a simple list-and-total, not calculated metrics or charts.
 
 ## Setup
 
@@ -72,7 +72,7 @@ On startup the bot verifies its connection to the Telegram API before
 polling. If the token is wrong, it fails fast with a clear error instead
 of hanging.
 
-## Verifying Modules 1, 2 & 3 work
+## Verifying Modules 1, 2, 3, 4 & 5 work
 
 1. Run the automated test suite:
 
@@ -95,16 +95,19 @@ of hanging.
 7. Send `/stop` — the bot should reply `Stopped 'Reading' (tracked ...).`
 8. Send `/stop` again — the bot should reply
    `No activity is currently running.`
-9. Send `/today` or `/week` — the bot should reply that it isn't available
-   yet (needs Module 5, the database).
-10. Send something unrecognized, e.g. `banana` — the bot should reply
+9. Send `/today` — the bot should list both activities with durations and
+   a total.
+10. Stop the bot (Ctrl+C) and start it again with `python main.py`, then
+    send `/today` again — the same activities should still be there,
+    confirming persistence across a restart.
+11. Send something unrecognized, e.g. `banana` — the bot should reply
     `Unrecognized command: 'banana'` and point to `/help`.
-11. Send a photo or sticker — the bot should reply
+12. Send a photo or sticker — the bot should reply
     "I can only handle text messages right now." and log a WARNING in
     `logs/app.log`.
-12. If a second Telegram account is available, message the bot from it —
+13. If a second Telegram account is available, message the bot from it —
     the bot should reply "You are not authorized to use this bot." and log
     a WARNING.
-13. Inspect `logs/app.log` and confirm the expected INFO/WARNING/ERROR
+14. Inspect `logs/app.log` and confirm the expected INFO/WARNING/ERROR
     events appear, and that your bot token never appears anywhere in the
     file (`grep -i <token> logs/app.log` should return nothing).

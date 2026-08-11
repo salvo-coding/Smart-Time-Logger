@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from activity_manager.manager import Activity, ActivityManager
+from activity_manager.manager import ActivityManager
+from database.db import ActivityRecord, Database
 
 
 def make_clock(start: datetime, step: timedelta = timedelta(minutes=1)):
@@ -23,8 +24,15 @@ def base_time() -> datetime:
 
 
 @pytest.fixture
-def manager(base_time) -> ActivityManager:
-    return ActivityManager(clock=make_clock(base_time))
+def database() -> Database:
+    db = Database(db_path=":memory:")
+    yield db
+    db.close()
+
+
+@pytest.fixture
+def manager(database, base_time) -> ActivityManager:
+    return ActivityManager(database=database, clock=make_clock(base_time))
 
 
 # --- normal use cases ---
@@ -96,20 +104,20 @@ def test_auto_close_sets_end_time_before_new_activity_start_time(manager):
 # --- invalid inputs ---
 
 
-def test_start_activity_with_empty_name_raises():
-    manager = ActivityManager()
+def test_start_activity_with_empty_name_raises(database):
+    manager = ActivityManager(database=database)
     with pytest.raises(ValueError):
         manager.start_activity("")
 
 
-def test_start_activity_with_whitespace_only_name_raises():
-    manager = ActivityManager()
+def test_start_activity_with_whitespace_only_name_raises(database):
+    manager = ActivityManager(database=database)
     with pytest.raises(ValueError):
         manager.start_activity("   ")
 
 
-def test_start_activity_with_none_name_raises():
-    manager = ActivityManager()
+def test_start_activity_with_none_name_raises(database):
+    manager = ActivityManager(database=database)
     with pytest.raises(ValueError):
         manager.start_activity(None)
 
@@ -127,25 +135,27 @@ def test_stop_activity_with_nothing_active_returns_none(manager):
     assert manager.get_history() == []
 
 
-def test_get_current_with_nothing_started_returns_none():
-    manager = ActivityManager()
+def test_get_current_with_nothing_started_returns_none(database):
+    manager = ActivityManager(database=database)
     assert manager.get_current() is None
 
 
-def test_get_history_returns_a_copy_not_internal_state(manager):
+def test_get_history_returns_a_fresh_list_each_time(manager):
     manager.start_activity("Coding")
     manager.stop_activity()
 
     history = manager.get_history()
-    history.append(Activity(name="Fake", started_at=datetime.now(timezone.utc)))
+    history.append(
+        ActivityRecord(id=999, name="Fake", started_at=datetime.now(timezone.utc))
+    )
 
     assert len(manager.get_history()) == 1
 
 
-def test_activity_is_immutable():
-    activity = Activity(name="Coding", started_at=datetime.now(timezone.utc))
+def test_activity_record_is_immutable():
+    record = ActivityRecord(id=1, name="Coding", started_at=datetime.now(timezone.utc))
     with pytest.raises(Exception):
-        activity.name = "Changed"
+        record.name = "Changed"
 
 
 def test_failed_start_does_not_close_existing_activity(manager):

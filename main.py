@@ -1,7 +1,9 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import List
 
 from activity_manager.manager import ActivityManager
+from database.db import ActivityRecord, Database
 from input_parser.parser import Command, CommandType, parse_command
 from logging_utils.logger import get_logger
 from telegram_interface.bot import TelegramInterface
@@ -18,8 +20,6 @@ HELP_TEXT = (
     "/help - show this message"
 )
 
-NOT_YET_AVAILABLE = "This isn't available yet - it needs the database module (Module 5+)."
-
 
 def _format_duration(delta: timedelta) -> str:
     total_seconds = int(delta.total_seconds())
@@ -30,6 +30,23 @@ def _format_duration(delta: timedelta) -> str:
     if minutes:
         return f"{minutes}m {seconds}s"
     return f"{seconds}s"
+
+
+def _format_activity_list(activities: List[ActivityRecord], label: str) -> str:
+    if not activities:
+        return f"No activities recorded {label}."
+
+    lines = [f"Activities {label}:"]
+    total = timedelta()
+    for activity in activities:
+        if activity.ended_at is not None:
+            duration = activity.ended_at - activity.started_at
+            total += duration
+            lines.append(f"- {activity.name}: {_format_duration(duration)}")
+        else:
+            lines.append(f"- {activity.name}: still running")
+    lines.append(f"Total tracked: {_format_duration(total)}")
+    return "\n".join(lines)
 
 
 def create_command_handler(manager: ActivityManager) -> IncomingMessageHandler:
@@ -67,8 +84,13 @@ def create_command_handler(manager: ActivityManager) -> IncomingMessageHandler:
             elapsed = datetime.now(timezone.utc) - current.started_at
             return f"Currently tracking '{current.name}' ({_format_duration(elapsed)} so far)."
 
-        # SHOW_TODAY, SHOW_WEEK: need persisted historical data (Module 5+)
-        return NOT_YET_AVAILABLE
+        if command.type == CommandType.SHOW_TODAY:
+            return _format_activity_list(manager.get_today(), "today")
+
+        if command.type == CommandType.SHOW_WEEK:
+            return _format_activity_list(manager.get_this_week(), "this week")
+
+        raise AssertionError(f"Unhandled command type: {command.type}")
 
     return command_handler
 
@@ -76,7 +98,8 @@ def create_command_handler(manager: ActivityManager) -> IncomingMessageHandler:
 def main() -> None:
     config = load_config()
     logger = get_logger("main")
-    manager = ActivityManager()
+    database = Database()
+    manager = ActivityManager(database=database)
     interface = TelegramInterface(
         config=config, on_message=create_command_handler(manager), logger=logger
     )

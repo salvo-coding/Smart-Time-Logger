@@ -1,8 +1,9 @@
 """
-Integration tests for the Module 1 -> Module 2 -> Module 3 wiring in
-main.py: a real Telegram update flows through TelegramInterface._handle_text
-into the real command_handler (which calls the real input_parser and a real
-ActivityManager), and back out as a reply - no mocked on_message in between.
+Integration tests for the Module 1 -> Module 2 -> Module 3 -> Module 5
+wiring in main.py: a real Telegram update flows through
+TelegramInterface._handle_text into the real command_handler (which calls
+the real input_parser, ActivityManager, and an in-memory Database), and
+back out as a reply - no mocked on_message in between.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -10,7 +11,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from activity_manager.manager import ActivityManager
-from main import HELP_TEXT, NOT_YET_AVAILABLE, create_command_handler
+from database.db import Database
+from main import HELP_TEXT, create_command_handler
 from telegram_interface.bot import TelegramInterface
 from telegram_interface.config import TelegramConfig
 
@@ -21,8 +23,15 @@ def dummy_config() -> TelegramConfig:
 
 
 @pytest.fixture
-def manager() -> ActivityManager:
-    return ActivityManager()
+def database():
+    db = Database(db_path=":memory:")
+    yield db
+    db.close()
+
+
+@pytest.fixture
+def manager(database) -> ActivityManager:
+    return ActivityManager(database=database)
 
 
 @pytest.fixture
@@ -60,8 +69,6 @@ def make_update(user_id=111, chat_id=999, text="hello", message_id=1):
         ("/start", HELP_TEXT),
         ("/help", HELP_TEXT),
         ("banana", "Unrecognized command: 'banana'\nSend /help for a list of commands."),
-        ("/today", NOT_YET_AVAILABLE),
-        ("/week", NOT_YET_AVAILABLE),
     ],
 )
 async def test_static_replies(interface, context, text, expected_reply):
@@ -70,6 +77,34 @@ async def test_static_replies(interface, context, text, expected_reply):
     await interface._handle_text(update, context)
 
     update.message.reply_text.assert_awaited_once_with(expected_reply)
+
+
+async def test_today_with_no_activities_says_so(interface, context):
+    update = make_update(text="/today")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("No activities recorded today.")
+
+
+async def test_week_with_no_activities_says_so(interface, context):
+    update = make_update(text="/week")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("No activities recorded this week.")
+
+
+async def test_today_lists_a_completed_activity_started_today(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    await interface._handle_text(make_update(text="/stop"), context)
+    update = make_update(text="/today")
+
+    await interface._handle_text(update, context)
+
+    reply = update.message.reply_text.await_args.args[0]
+    assert "Coding" in reply
+    assert "Total tracked" in reply
 
 
 # --- activity_manager-backed commands ---
