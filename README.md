@@ -8,9 +8,12 @@ See `CLAUDE.md` for development principles and workflow.
 
 ## Status
 
-All 8 modules are implemented and tested: Telegram interface, input
-parser, activity manager, validation, database, analytics, reports, and
-logging.
+Modules 1-7 are fully implemented and tested: Telegram interface, input
+parser, activity manager, validation, database, analytics, and reports.
+Module 8 (logging) is partial - the console+file handler setup Module 1
+depends on exists and is tested, but the structured error taxonomy and
+secret-scrubbing helpers described in its own docstring are still a
+future pass.
 
 Activity state persists to a local SQLite database (`data/time_logger.db`,
 gitignored) and survives a bot restart. `ActivityManager` delegates all
@@ -80,7 +83,7 @@ Telegram API before any messages are processed. If the token is wrong or
 the API is unreachable, it fails fast with a clear error instead of
 hanging or retrying indefinitely.
 
-## Verifying all 8 modules work
+## Verifying Modules 1-7 work
 
 1. Run the automated test suite:
 
