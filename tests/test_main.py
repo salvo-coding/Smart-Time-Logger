@@ -1,15 +1,16 @@
 """
-Integration tests for the Module 1 -> Module 2 wiring in main.py: a real
-Telegram update flows through TelegramInterface._handle_text into the real
-command_handler (which calls the real input_parser), and back out as a
-reply - no mocked on_message in between.
+Integration tests for the Module 1 -> Module 2 -> Module 3 wiring in
+main.py: a real Telegram update flows through TelegramInterface._handle_text
+into the real command_handler (which calls the real input_parser and a real
+ActivityManager), and back out as a reply - no mocked on_message in between.
 """
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from main import HELP_TEXT, command_handler
+from activity_manager.manager import ActivityManager
+from main import HELP_TEXT, NOT_YET_AVAILABLE, create_command_handler
 from telegram_interface.bot import TelegramInterface
 from telegram_interface.config import TelegramConfig
 
@@ -20,8 +21,13 @@ def dummy_config() -> TelegramConfig:
 
 
 @pytest.fixture
-def interface(dummy_config) -> TelegramInterface:
-    return TelegramInterface(config=dummy_config, on_message=command_handler)
+def manager() -> ActivityManager:
+    return ActivityManager()
+
+
+@pytest.fixture
+def interface(dummy_config, manager) -> TelegramInterface:
+    return TelegramInterface(config=dummy_config, on_message=create_command_handler(manager))
 
 
 @pytest.fixture
@@ -45,20 +51,20 @@ def make_update(user_id=111, chat_id=999, text="hello", message_id=1):
     return update
 
 
+# --- commands with static replies ---
+
+
 @pytest.mark.parametrize(
     "text,expected_reply",
     [
         ("/start", HELP_TEXT),
-        ("/start Coding", "Understood: START_ACTIVITY (Coding)\nExecution is not implemented yet (Module 3+)."),
-        ("/stop", "Understood: STOP_ACTIVITY\nExecution is not implemented yet (Module 3+)."),
-        ("/current", "Understood: SHOW_CURRENT\nExecution is not implemented yet (Module 3+)."),
-        ("/today", "Understood: SHOW_TODAY\nExecution is not implemented yet (Module 3+)."),
-        ("/week", "Understood: SHOW_WEEK\nExecution is not implemented yet (Module 3+)."),
         ("/help", HELP_TEXT),
         ("banana", "Unrecognized command: 'banana'\nSend /help for a list of commands."),
+        ("/today", NOT_YET_AVAILABLE),
+        ("/week", NOT_YET_AVAILABLE),
     ],
 )
-async def test_full_pipeline_reply_for_authorized_user(interface, context, text, expected_reply):
+async def test_static_replies(interface, context, text, expected_reply):
     update = make_update(user_id=111, text=text)
 
     await interface._handle_text(update, context)
@@ -66,9 +72,70 @@ async def test_full_pipeline_reply_for_authorized_user(interface, context, text,
     update.message.reply_text.assert_awaited_once_with(expected_reply)
 
 
-async def test_unauthorized_user_never_reaches_the_parser(interface, context):
+# --- activity_manager-backed commands ---
+
+
+async def test_start_activity_starts_and_replies(interface, context, manager):
+    update = make_update(text="/start Coding")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("Started 'Coding'.")
+    assert manager.get_current().name == "Coding"
+
+
+async def test_starting_new_activity_auto_closes_previous_and_mentions_it(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    update = make_update(text="/start Reading")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("Stopped 'Coding'. Started 'Reading'.")
+
+
+async def test_stop_with_nothing_active_replies_accordingly(interface, context):
+    update = make_update(text="/stop")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("No activity is currently running.")
+
+
+async def test_stop_after_start_reports_tracked_duration(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    update = make_update(text="/stop")
+
+    await interface._handle_text(update, context)
+
+    reply = update.message.reply_text.await_args.args[0]
+    assert reply.startswith("Stopped 'Coding' (tracked")
+
+
+async def test_current_with_nothing_active_replies_accordingly(interface, context):
+    update = make_update(text="/current")
+
+    await interface._handle_text(update, context)
+
+    update.message.reply_text.assert_awaited_once_with("No activity is currently running.")
+
+
+async def test_current_after_start_reports_activity_and_elapsed_time(interface, context):
+    await interface._handle_text(make_update(text="/start Coding"), context)
+    update = make_update(text="/current")
+
+    await interface._handle_text(update, context)
+
+    reply = update.message.reply_text.await_args.args[0]
+    assert reply.startswith("Currently tracking 'Coding'")
+
+
+# --- authorization boundary ---
+
+
+async def test_unauthorized_user_never_reaches_the_parser(interface, context, manager):
     update = make_update(user_id=999, text="/start Coding")
 
     await interface._handle_text(update, context)
 
     update.message.reply_text.assert_awaited_once_with("You are not authorized to use this bot.")
+    assert manager.get_current() is None

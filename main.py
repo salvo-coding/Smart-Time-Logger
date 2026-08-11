@@ -1,10 +1,12 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 
+from activity_manager.manager import ActivityManager
 from input_parser.parser import Command, CommandType, parse_command
 from logging_utils.logger import get_logger
 from telegram_interface.bot import TelegramInterface
 from telegram_interface.config import load_config
-from telegram_interface.messages import IncomingMessage
+from telegram_interface.messages import IncomingMessage, IncomingMessageHandler
 
 HELP_TEXT = (
     "Smart Time Logger commands:\n"
@@ -16,26 +18,68 @@ HELP_TEXT = (
     "/help - show this message"
 )
 
+NOT_YET_AVAILABLE = "This isn't available yet - it needs the database module (Module 5+)."
 
-async def command_handler(message: IncomingMessage) -> str:
-    """Temporary stand-in for the Module 3+ pipeline (not part of Module 2).
-    Parses the command but cannot act on it until activity_manager and
-    database are implemented."""
-    command: Command = parse_command(message)
 
-    if command.type == CommandType.HELP:
-        return HELP_TEXT
-    if command.type == CommandType.UNKNOWN:
-        return f"Unrecognized command: {command.raw_text!r}\nSend /help for a list of commands."
+def _format_duration(delta: timedelta) -> str:
+    total_seconds = int(delta.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
 
-    detail = f" ({command.activity_name})" if command.activity_name else ""
-    return f"Understood: {command.type.name}{detail}\nExecution is not implemented yet (Module 3+)."
+
+def create_command_handler(manager: ActivityManager) -> IncomingMessageHandler:
+    """Builds the on_message handler for TelegramInterface, closing over an
+    ActivityManager instance shared across all messages for this bot run."""
+
+    async def command_handler(message: IncomingMessage) -> str:
+        command: Command = parse_command(message)
+
+        if command.type == CommandType.HELP:
+            return HELP_TEXT
+
+        if command.type == CommandType.UNKNOWN:
+            return f"Unrecognized command: {command.raw_text!r}\nSend /help for a list of commands."
+
+        if command.type == CommandType.START_ACTIVITY:
+            previous = manager.get_current()
+            activity = manager.start_activity(command.activity_name)
+            reply = f"Started '{activity.name}'."
+            if previous is not None:
+                reply = f"Stopped '{previous.name}'. " + reply
+            return reply
+
+        if command.type == CommandType.STOP_ACTIVITY:
+            closed = manager.stop_activity()
+            if closed is None:
+                return "No activity is currently running."
+            duration = closed.ended_at - closed.started_at
+            return f"Stopped '{closed.name}' (tracked {_format_duration(duration)})."
+
+        if command.type == CommandType.SHOW_CURRENT:
+            current = manager.get_current()
+            if current is None:
+                return "No activity is currently running."
+            elapsed = datetime.now(timezone.utc) - current.started_at
+            return f"Currently tracking '{current.name}' ({_format_duration(elapsed)} so far)."
+
+        # SHOW_TODAY, SHOW_WEEK: need persisted historical data (Module 5+)
+        return NOT_YET_AVAILABLE
+
+    return command_handler
 
 
 def main() -> None:
     config = load_config()
     logger = get_logger("main")
-    interface = TelegramInterface(config=config, on_message=command_handler, logger=logger)
+    manager = ActivityManager()
+    interface = TelegramInterface(
+        config=config, on_message=create_command_handler(manager), logger=logger
+    )
     asyncio.run(interface.verify_connection())
     logger.info("Telegram connection verified, starting polling")
     interface.run()
