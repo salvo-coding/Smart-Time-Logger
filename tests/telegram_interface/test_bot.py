@@ -100,33 +100,6 @@ async def test_error_handler_logs_network_error_without_raising(interface, conte
     assert "telegram api request failed" in caplog.text.lower()
 
 
-async def test_verify_connection_invalid_token_raises_bot_startup_error(
-    interface, dummy_config, caplog, monkeypatch
-):
-    monkeypatch.setattr(
-        type(interface._application.bot),
-        "get_me",
-        AsyncMock(side_effect=InvalidToken("bad token")),
-    )
-
-    with caplog.at_level(logging.ERROR):
-        with pytest.raises(BotStartupError):
-            await interface.verify_connection()
-
-    assert dummy_config.bot_token not in caplog.text
-
-
-async def test_verify_connection_api_unavailable_raises_bot_startup_error(interface, monkeypatch):
-    monkeypatch.setattr(
-        type(interface._application.bot),
-        "get_me",
-        AsyncMock(side_effect=NetworkError("unreachable")),
-    )
-
-    with pytest.raises(BotStartupError):
-        await interface.verify_connection()
-
-
 def test_run_calls_run_polling(interface, monkeypatch):
     mock_run_polling = MagicMock()
     monkeypatch.setattr(interface._application, "run_polling", mock_run_polling)
@@ -134,6 +107,27 @@ def test_run_calls_run_polling(interface, monkeypatch):
     interface.run()
 
     mock_run_polling.assert_called_once()
+
+
+def test_run_invalid_token_raises_bot_startup_error(interface, dummy_config, caplog, monkeypatch):
+    monkeypatch.setattr(
+        interface._application, "run_polling", MagicMock(side_effect=InvalidToken("bad token"))
+    )
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(BotStartupError):
+            interface.run()
+
+    assert dummy_config.bot_token not in caplog.text
+
+
+def test_run_network_error_raises_bot_startup_error(interface, monkeypatch):
+    monkeypatch.setattr(
+        interface._application, "run_polling", MagicMock(side_effect=NetworkError("unreachable"))
+    )
+
+    with pytest.raises(BotStartupError):
+        interface.run()
 
 
 async def test_downstream_handler_exception_does_not_crash_bot(

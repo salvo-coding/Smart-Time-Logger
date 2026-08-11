@@ -115,20 +115,25 @@ class TelegramInterface:
                 type(exc).__name__,
             )
 
-    async def verify_connection(self) -> None:
-        """Fails fast with BotStartupError if the token is invalid or the
-        Telegram API is unreachable, instead of hanging in run_polling()."""
+    def run(self) -> None:
+        """Runs polling. PTB's own bootstrap already calls get_me() before
+        polling starts and fails fast (no retries) on a bad token or
+        unreachable API; this translates that into a BotStartupError with a
+        clearer message instead of a raw TelegramError.
+
+        Everything here runs inside run_polling()'s own event loop on
+        purpose - a Bot's underlying HTTP client is bound to whichever loop
+        first uses it and cannot safely be reused from a second one, so
+        connectivity must not be pre-checked via a separate asyncio.run()
+        call before this.
+        """
         try:
-            await self._application.bot.get_me()
+            self._application.run_polling()
         except TelegramError as exc:
             self._logger.error(
-                "Telegram API request failed during startup verification: %s",
-                type(exc).__name__,
+                "Telegram API request failed during startup: %s", type(exc).__name__
             )
             raise BotStartupError(
                 "Could not verify connection to the Telegram API. "
                 "Check your bot token and network connection."
             ) from exc
-
-    def run(self) -> None:
-        self._application.run_polling()

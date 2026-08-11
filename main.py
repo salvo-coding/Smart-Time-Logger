@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import List
 
@@ -109,8 +108,7 @@ def main() -> None:
     interface = TelegramInterface(
         config=config, on_message=create_command_handler(manager), logger=logger
     )
-    asyncio.run(interface.verify_connection())
-    logger.info("Telegram connection verified, starting polling")
+    logger.info("Starting polling")
     interface.run()
 
 
